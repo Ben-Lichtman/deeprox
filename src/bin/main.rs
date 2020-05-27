@@ -17,22 +17,15 @@ use async_tls::client::TlsStream as ClientTlsStream;
 use async_tls::server::TlsStream as ServerTlsStream;
 use async_tls::{TlsAcceptor, TlsConnector};
 
-// use httparse::{Request, Response, Status, EMPTY_HEADER};
-
-// use async_h1::{accept, connect};
-
 use deeprox::error::Error;
 use deeprox::helpers::*;
-
-// const MIN_BUF_SIZE: usize = 0x2000;
-// const MAX_HEADERS: usize = 0x20;
 
 use async_h1::client;
 use async_h1::server;
 
 use piper;
 
-use http_types::{Method, Request, Response};
+use http_types::{Body, Method, Request, Response};
 
 fn load_ca() -> Result<(PKey<Private>, X509), Error> {
 	// let ca_privkey_ossl = generate_keys()?;
@@ -95,6 +88,7 @@ async fn do_tls_handshake(
 	let _port = str::parse::<u16>(info.next().unwrap()).unwrap();
 
 	// Open connection to server
+	// println!("Connecting https: {}", request.host().unwrap());
 	let server_stream = TcpStream::connect(request.host().unwrap()).await?;
 
 	let mut client_config = ClientConfig::new();
@@ -137,22 +131,38 @@ async fn read_response(
 		.map_err(|_| Error::HttpTypeErr)
 }
 
-fn edit_request(input: Request) -> Request { input }
+async fn edit_request(mut input: Request) -> Result<Request, Error> {
+	let body = input.take_body();
+	let body_bytes = body.into_bytes().await.map_err(|_| Error::HttpTypeErr)?;
+	// println!("Request: {:?}", &input);
+	// println!("Request body: {}", String::from_utf8_lossy(&body_bytes));
+	let body = Body::from_bytes(body_bytes);
+	input.set_body(body);
+	Ok(input)
+}
 
-fn edit_response(intput: Response) -> Response { intput }
+async fn edit_response(mut input: Response) -> Result<Response, Error> {
+	let body = input.take_body();
+	let body_bytes = body.into_bytes().await.map_err(|_| Error::HttpTypeErr)?;
+	// println!("Response: {:?}", &input);
+	// println!("Response body: {}", String::from_utf8_lossy(&body_bytes));
+	let body = Body::from_bytes(body_bytes);
+	input.set_body(body);
+	Ok(input)
+}
 
 async fn handle_request(
 	request: Request,
 	client_stream: impl Read + Write + Clone + Send + Sync + Unpin + 'static,
 	server_stream: impl Read + Write + Clone + Send + Sync + Unpin + 'static,
 ) -> Result<(), Error> {
-	let request = edit_request(request);
+	let request = edit_request(request).await?;
 	let request_encoded = client::Encoder::encode(request)
 		.await
 		.map_err(|_| Error::HttpTypeErr)?;
 	copy(request_encoded, server_stream.clone()).await?;
 	let response = read_response(server_stream).await?;
-	let response = edit_response(response);
+	let response = edit_response(response).await?;
 	let response_encoded = server::Encoder::new(response);
 	copy(response_encoded, client_stream).await?;
 	Ok(())
@@ -163,7 +173,10 @@ async fn enter_loop(
 	server_stream: impl Read + Write + Clone + Send + Sync + Unpin + 'static,
 ) -> Result<(), Error> {
 	loop {
-		let request = read_request(client_stream.clone()).await?.unwrap();
+		let request = match read_request(client_stream.clone()).await? {
+			Some(r) => r,
+			None => break Ok(()),
+		};
 		handle_request(request, client_stream.clone(), server_stream.clone()).await?;
 	}
 }
@@ -177,7 +190,9 @@ async fn handle_connection(client_stream: TcpStream) -> Result<(), Error> {
 		enter_loop(tls_client_stream, tls_server_stream).await?;
 	}
 	else {
-		let server_stream = TcpStream::connect(request.host().unwrap()).await?;
+		let addr = request.url().socket_addrs(|| Some(80)).unwrap()[0];
+		// println!("Connecting http: {}", &addr);
+		let server_stream = TcpStream::connect(&addr).await?;
 		handle_request(request, client_stream.clone(), server_stream.clone()).await?;
 		enter_loop(client_stream, server_stream).await?;
 	}
@@ -191,6 +206,6 @@ async fn main() -> Result<(), Error> {
 
 	loop {
 		let (stream, _peer_addr) = listener.accept().await?;
-		spawn(handle_connection(stream)).await?;
+		spawn(handle_connection(stream));
 	}
 }

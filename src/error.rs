@@ -16,8 +16,6 @@ pub enum Error {
 	RustlsEmptyErr,
 	#[error("something went wrong in webpki")]
 	WebPkiErr,
-	#[error(transparent)]
-	UrlErr(#[from] url::ParseError),
 	#[error("something went wrong in http_types")]
 	HttpTypeErr,
 	#[error(transparent)]
