@@ -23,8 +23,6 @@ use deeprox::helpers::*;
 use async_h1::client;
 use async_h1::server;
 
-use piper;
-
 use http_types::{Body, Method, Request, Response};
 
 fn load_ca() -> Result<(PKey<Private>, X509), Error> {
