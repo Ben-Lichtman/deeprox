@@ -19,6 +19,7 @@ dependencies = [
 [[package]]
 name = "async-h1"
 version = "2.0.0"
+source = "git+https://github.com/Ben-Lichtman/async-h1.git#d95b421cb34d619d4d1fbfcc6b926670f6f69717"
 dependencies = [
  "async-std",
  "byte-pool",

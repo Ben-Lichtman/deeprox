@@ -14,6 +14,6 @@ rustls = "0.17"
 rand = "0.7"
 async-std = { version = "1.6.0", features = ["attributes"] }
 async-tls = "0.7.0"
-async-h1 = { path = "/home/ben/repos/other_repos/async-h1" }
+async-h1 = { git = "https://github.com/Ben-Lichtman/async-h1.git" }
 http-types = "2.0.1"
 piper = "0.1.2"
