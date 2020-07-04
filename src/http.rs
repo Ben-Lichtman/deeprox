@@ -13,13 +13,13 @@ use async_tls::client::TlsStream as ClientTlsStream;
 use async_tls::server::TlsStream as ServerTlsStream;
 use async_tls::{TlsAcceptor, TlsConnector};
 
-use crate::crypto_helpers::*;
-use crate::error::Error;
-
-use async_h1::client;
-use async_h1::server;
+use async_h1::{client, server};
 
 use http_types::{Body, Method, Request, Response, StatusCode};
+
+use crate::crypto_helpers::*;
+use crate::error::Error;
+use crate::proxy::Proxy;
 
 fn make_server_config(domain: &str) -> Result<ServerConfig, Error> {
 	// Load certificates
@@ -100,45 +100,27 @@ async fn read_response(
 		.map_err(|_| Error::HttpTypeErr)
 }
 
-async fn edit_request(mut input: Request) -> Result<Request, Error> {
-	let body = input.take_body();
-	let body_bytes = body.into_bytes().await.map_err(|_| Error::HttpTypeErr)?;
-	// println!("Request: {:?}", &input);
-	// println!("Request body: {}", String::from_utf8_lossy(&body_bytes));
-	let body = Body::from_bytes(body_bytes);
-	input.set_body(body);
-	Ok(input)
-}
-
-async fn edit_response(mut input: Response) -> Result<Response, Error> {
-	let body = input.take_body();
-	let body_bytes = body.into_bytes().await.map_err(|_| Error::HttpTypeErr)?;
-	// println!("Response: {:?}", &input);
-	// println!("Response body: {}", String::from_utf8_lossy(&body_bytes));
-	let body = Body::from_bytes(body_bytes);
-	input.set_body(body);
-	Ok(input)
-}
-
 async fn handle_request(
+	proxy: Arc<Proxy>,
 	request: Request,
 	client_stream: impl Read + Write + Clone + Send + Sync + Unpin + 'static,
 	server_stream: impl Read + Write + Clone + Send + Sync + Unpin + 'static,
 ) -> Result<(), Error> {
-	let request = edit_request(request).await?;
+	let request = (proxy.edit_request)(request)?;
 	let method = request.method();
 	let request_encoded = client::Encoder::encode(request)
 		.await
 		.map_err(|_| Error::HttpTypeErr)?;
 	copy(request_encoded, server_stream.clone()).await?;
 	let response = read_response(server_stream).await?;
-	let response = edit_response(response).await?;
+	let response = (proxy.edit_response)(response)?;
 	let response_encoded = server::Encoder::new(response, method);
 	copy(response_encoded, client_stream).await?;
 	Ok(())
 }
 
 async fn enter_loop(
+	proxy: Arc<Proxy>,
 	client_stream: impl Read + Write + Clone + Send + Sync + Unpin + 'static,
 	server_stream: impl Read + Write + Clone + Send + Sync + Unpin + 'static,
 ) -> Result<(), Error> {
@@ -147,7 +129,13 @@ async fn enter_loop(
 			Some(r) => r,
 			None => break Ok(()),
 		};
-		handle_request(request, client_stream.clone(), server_stream.clone()).await?;
+		handle_request(
+			proxy.clone(),
+			request,
+			client_stream.clone(),
+			server_stream.clone(),
+		)
+		.await?;
 	}
 }
 
@@ -171,16 +159,13 @@ async fn proxy_auth(
 	Ok(request)
 }
 
-pub async fn handle_connection(
-	client_stream: TcpStream,
-	authenticate: Option<&str>,
-) -> Result<(), Error> {
+pub async fn handle_connection(proxy: Arc<Proxy>, client_stream: TcpStream) -> Result<(), Error> {
 	let request = match read_request(client_stream.clone()).await? {
 		Some(r) => r,
 		None => return Ok(()),
 	};
 
-	let request = match authenticate {
+	let request = match proxy.auth {
 		Some(s) => proxy_auth(client_stream.clone(), s).await?,
 		None => request,
 	};
@@ -188,14 +173,20 @@ pub async fn handle_connection(
 	if request.method() == Method::Connect {
 		let (tls_client_stream, tls_server_stream) =
 			do_tls_handshake(client_stream, request).await?;
-		enter_loop(tls_client_stream, tls_server_stream).await?;
+		enter_loop(proxy, tls_client_stream, tls_server_stream).await?;
 	}
 	else {
 		let addr = request.url().socket_addrs(|| Some(80)).unwrap()[0];
 		// println!("Connecting http: {}", &addr);
 		let server_stream = TcpStream::connect(&addr).await?;
-		handle_request(request, client_stream.clone(), server_stream.clone()).await?;
-		enter_loop(client_stream, server_stream).await?;
+		handle_request(
+			proxy.clone(),
+			request,
+			client_stream.clone(),
+			server_stream.clone(),
+		)
+		.await?;
+		enter_loop(proxy, client_stream, server_stream).await?;
 	}
 
 	Ok(())

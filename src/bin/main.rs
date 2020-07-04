@@ -4,6 +4,6 @@ use deeprox::proxy::Proxy;
 
 #[async_std::main]
 async fn main() {
-	let proxy = Proxy::new("0.0.0.0:8080", Some(PROXY_CREDS));
+	let proxy = Proxy::new("0.0.0.0:8080".parse().unwrap(), None);
 	proxy.start().await.unwrap();
 }
