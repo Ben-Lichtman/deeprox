@@ -4,6 +4,8 @@ use thiserror::Error;
 pub enum Error {
 	#[error("something could not be parsed")]
 	ParseErr,
+	#[error("proxy client could not authenticate")]
+	ProxyAuthErr,
 	#[error(transparent)]
 	OSSLErr(#[from] openssl::error::Error),
 	#[error(transparent)]
