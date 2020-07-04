@@ -10,6 +10,8 @@ use openssl::rsa::Rsa;
 use openssl::x509::extension::{BasicConstraints, SubjectAlternativeName, SubjectKeyIdentifier};
 use openssl::x509::{X509Builder, X509NameBuilder, X509Ref, X509};
 
+use rustls::{Certificate, PrivateKey};
+
 use crate::error::Error;
 
 pub fn generate_keys() -> Result<PKey<Private>, Error> {
@@ -129,4 +131,29 @@ pub fn make_pkcs12(
 ) -> Result<Pkcs12, Error> {
 	let pkcs12 = Pkcs12::builder().build(password, name, key, cert)?;
 	Ok(pkcs12)
+}
+
+pub fn load_ca() -> Result<(PKey<Private>, X509), Error> {
+	// let ca_privkey_ossl = generate_keys()?;
+	// let ca_cert_ossl = make_ca_cert(&ca_privkey_ossl, rand::random::<u32>())?;
+	// save_key("ca_key.pem", &ca_privkey_ossl)?;
+	// save_cert("ca_cert.pem", &ca_cert_ossl)?;
+
+	let ca_privkey_ossl = load_key("ca_key.pem")?;
+	let ca_cert_ossl = load_cert("ca_cert.pem")?;
+
+	Ok((ca_privkey_ossl, ca_cert_ossl))
+}
+
+pub fn convert_to_rustls(
+	privkey: &PKey<Private>,
+	cert: &X509,
+) -> Result<(Vec<PrivateKey>, Vec<Certificate>), Error> {
+	let mut privkey_cursor = key_cursor(&privkey)?;
+	let privkey_tls = rustls::internal::pemfile::pkcs8_private_keys(&mut privkey_cursor)
+		.map_err(|_| Error::RustlsEmptyErr)?;
+	let mut cert_cursor = cert_cursor(&cert)?;
+	let cert_tls =
+		rustls::internal::pemfile::certs(&mut cert_cursor).map_err(|_| Error::RustlsEmptyErr)?;
+	Ok((privkey_tls, cert_tls))
 }
