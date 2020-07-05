@@ -32,6 +32,20 @@ impl Proxy {
 		}
 	}
 
+	pub fn edit_request_using(
+		&mut self,
+		f: fn(Request) -> BoxFuture<'static, Result<Request, Error>>,
+	) {
+		self.edit_request = f;
+	}
+
+	pub fn edit_response_using(
+		&mut self,
+		f: fn(Response) -> BoxFuture<'static, Result<Response, Error>>,
+	) {
+		self.edit_response = f;
+	}
+
 	pub async fn start(self) -> Result<(), Error> {
 		let listener = TcpListener::bind(&self.addr).await?;
 
