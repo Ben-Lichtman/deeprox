@@ -15,7 +15,7 @@ use async_tls::{TlsAcceptor, TlsConnector};
 
 use async_h1::{client, server};
 
-use http_types::{Body, Method, Request, Response, StatusCode};
+use http_types::{Method, Request, Response, StatusCode};
 
 use crate::crypto_helpers::*;
 use crate::error::Error;
@@ -106,14 +106,14 @@ async fn handle_request(
 	client_stream: impl Read + Write + Clone + Send + Sync + Unpin + 'static,
 	server_stream: impl Read + Write + Clone + Send + Sync + Unpin + 'static,
 ) -> Result<(), Error> {
-	let request = (proxy.edit_request)(request)?;
+	let request = (proxy.edit_request)(request).await?;
 	let method = request.method();
 	let request_encoded = client::Encoder::encode(request)
 		.await
 		.map_err(|_| Error::HttpTypeErr)?;
 	copy(request_encoded, server_stream.clone()).await?;
 	let response = read_response(server_stream).await?;
-	let response = (proxy.edit_response)(response)?;
+	let response = (proxy.edit_response)(response).await?;
 	let response_encoded = server::Encoder::new(response, method);
 	copy(response_encoded, client_stream).await?;
 	Ok(())

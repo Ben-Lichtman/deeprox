@@ -99,7 +99,7 @@ dependencies = [
 [[package]]
 name = "async-h1"
 version = "2.0.2"
-source = "git+https://github.com/Ben-Lichtman/async-h1.git#7ad9bab43e4539e14a12223dc3bb1eeb31a49686"
+source = "git+https://github.com/http-rs/async-h1.git#6db843a830de5748bf668b499ffdd5ceccccdf3d"
 dependencies = [
  "async-std",
  "byte-pool",
@@ -359,6 +359,7 @@ dependencies = [
  "async-std",
  "async-tls",
  "base64 0.12.3",
+ "futures",
  "http-types",
  "openssl",
  "rand",
