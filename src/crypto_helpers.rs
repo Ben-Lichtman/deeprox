@@ -1,14 +1,20 @@
-use std::fs::File;
-use std::io::{Cursor, Read, Write};
+use std::{
+	fs::File,
+	io::{Cursor, Read, Write},
+};
 
-use openssl::asn1::Asn1Time;
-use openssl::bn::BigNum;
-use openssl::hash::MessageDigest;
-use openssl::pkcs12::Pkcs12;
-use openssl::pkey::{PKey, PKeyRef, Private};
-use openssl::rsa::Rsa;
-use openssl::x509::extension::{BasicConstraints, SubjectAlternativeName, SubjectKeyIdentifier};
-use openssl::x509::{X509Builder, X509NameBuilder, X509Ref, X509};
+use openssl::{
+	asn1::Asn1Time,
+	bn::BigNum,
+	hash::MessageDigest,
+	pkcs12::Pkcs12,
+	pkey::{PKey, PKeyRef, Private},
+	rsa::Rsa,
+	x509::{
+		extension::{BasicConstraints, SubjectAlternativeName, SubjectKeyIdentifier},
+		X509Builder, X509NameBuilder, X509Ref, X509,
+	},
+};
 
 use rustls::{Certificate, PrivateKey};
 
@@ -133,14 +139,14 @@ pub fn make_pkcs12(
 	Ok(pkcs12)
 }
 
-pub fn load_ca() -> Result<(PKey<Private>, X509), Error> {
+pub fn load_ca(key: &str, cert: &str) -> Result<(PKey<Private>, X509), Error> {
 	// let ca_privkey_ossl = generate_keys()?;
 	// let ca_cert_ossl = make_ca_cert(&ca_privkey_ossl, rand::random::<u32>())?;
 	// save_key("ca_key.pem", &ca_privkey_ossl)?;
 	// save_cert("ca_cert.pem", &ca_cert_ossl)?;
 
-	let ca_privkey_ossl = load_key("ca_key.pem")?;
-	let ca_cert_ossl = load_cert("ca_cert.pem")?;
+	let ca_privkey_ossl = load_key(key)?;
+	let ca_cert_ossl = load_cert(cert)?;
 
 	Ok((ca_privkey_ossl, ca_cert_ossl))
 }

@@ -4,26 +4,24 @@ use async_std::prelude::*;
 
 use async_std::io::prelude::*;
 
-use async_std::io::copy;
-use async_std::net::TcpStream;
+use async_std::{io::copy, net::TcpStream};
 
 use rustls::{ClientConfig, NoClientAuth, ServerConfig};
 
-use async_tls::client::TlsStream as ClientTlsStream;
-use async_tls::server::TlsStream as ServerTlsStream;
-use async_tls::{TlsAcceptor, TlsConnector};
+use async_tls::{
+	client::TlsStream as ClientTlsStream, server::TlsStream as ServerTlsStream, TlsAcceptor,
+	TlsConnector,
+};
 
 use async_h1::{client, server};
 
 use http_types::{Method, Request, Response, StatusCode};
 
-use crate::crypto_helpers::*;
-use crate::error::Error;
-use crate::proxy::Proxy;
+use crate::{crypto_helpers::*, error::Error, proxy::Proxy};
 
-fn make_server_config(domain: &str) -> Result<ServerConfig, Error> {
+fn make_server_config(domain: &str, key: &str, cert: &str) -> Result<ServerConfig, Error> {
 	// Load certificates
-	let (ca_privkey_ossl, ca_cert_ossl) = load_ca()?;
+	let (ca_privkey_ossl, ca_cert_ossl) = load_ca(key, cert)?;
 
 	let domain_privkey_ossl = generate_keys()?;
 	let domain_cert_ossl = make_signed_cert(
@@ -45,6 +43,8 @@ fn make_server_config(domain: &str) -> Result<ServerConfig, Error> {
 async fn do_tls_handshake(
 	mut client_stream: TcpStream,
 	request: Request,
+	key: &str,
+	cert: &str,
 ) -> Result<
 	(
 		async_dup::Arc<async_dup::Mutex<ServerTlsStream<TcpStream>>>,
@@ -71,7 +71,7 @@ async fn do_tls_handshake(
 	client_stream.write_all(b"HTTP/1.1 200 OK\r\n\r\n").await?;
 
 	// Start TCP Proxy
-	let server_config = make_server_config(host_str)?;
+	let server_config = make_server_config(host_str, key, cert)?;
 	let client_stream = TlsAcceptor::from(Arc::new(server_config))
 		.accept(client_stream)
 		.await?;
@@ -106,14 +106,18 @@ async fn handle_request(
 	client_stream: impl Read + Write + Clone + Send + Sync + Unpin + 'static,
 	server_stream: impl Read + Write + Clone + Send + Sync + Unpin + 'static,
 ) -> Result<(), Error> {
-	let request = (proxy.edit_request)(request).await?;
+	let request = (proxy.edit_request)(request)
+		.await
+		.map_err(|_| Error::TransformationErr)?;
 	let method = request.method();
 	let request_encoded = client::Encoder::encode(request)
 		.await
 		.map_err(|_| Error::HttpTypeErr)?;
 	copy(request_encoded, server_stream.clone()).await?;
 	let response = read_response(server_stream).await?;
-	let response = (proxy.edit_response)(response).await?;
+	let response = (proxy.edit_response)(response)
+		.await
+		.map_err(|_| Error::TransformationErr)?;
 	let response_encoded = server::Encoder::new(response, method);
 	copy(response_encoded, client_stream).await?;
 	Ok(())
@@ -172,7 +176,7 @@ pub async fn handle_connection(proxy: Arc<Proxy>, client_stream: TcpStream) -> R
 
 	if request.method() == Method::Connect {
 		let (tls_client_stream, tls_server_stream) =
-			do_tls_handshake(client_stream, request).await?;
+			do_tls_handshake(client_stream, request, &proxy.key, &proxy.cert).await?;
 		enter_loop(proxy, tls_client_stream, tls_server_stream).await?;
 	}
 	else {

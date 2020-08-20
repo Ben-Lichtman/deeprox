@@ -1,32 +1,36 @@
 use std::sync::Arc;
 
-use async_std::net::{SocketAddr, TcpListener};
-use async_std::task::spawn;
+use async_std::{
+	net::{SocketAddr, TcpListener},
+	task::spawn,
+};
 
 use http_types::{Request, Response};
 
-use futures::future::BoxFuture;
-use futures::prelude::*;
+use futures::{future::BoxFuture, prelude::*};
 
-use crate::error::Error;
-use crate::http::*;
+use crate::{error::Error, http::*};
 
 pub struct Proxy {
 	pub addr: SocketAddr,
 	pub auth: Option<&'static str>,
-	pub edit_request: fn(Request) -> BoxFuture<'static, Result<Request, Error>>,
-	pub edit_response: fn(Response) -> BoxFuture<'static, Result<Response, Error>>,
+	pub key: String,
+	pub cert: String,
+	pub edit_request: fn(Request) -> BoxFuture<'static, Result<Request, ()>>,
+	pub edit_response: fn(Response) -> BoxFuture<'static, Result<Response, ()>>,
 }
 
-async fn ident_request(input: Request) -> Result<Request, Error> { Ok(input) }
+async fn ident_request(input: Request) -> Result<Request, ()> { Ok(input) }
 
-async fn ident_response(input: Response) -> Result<Response, Error> { Ok(input) }
+async fn ident_response(input: Response) -> Result<Response, ()> { Ok(input) }
 
 impl Proxy {
-	pub fn new(addr: SocketAddr, auth: Option<&'static str>) -> Self {
+	pub fn new(addr: SocketAddr, auth: Option<&'static str>, key: String, cert: String) -> Self {
 		Proxy {
 			addr,
 			auth,
+			key,
+			cert,
 			edit_request: |r| ident_request(r).boxed(),
 			edit_response: |r| ident_response(r).boxed(),
 		}
@@ -34,14 +38,14 @@ impl Proxy {
 
 	pub fn edit_request_using(
 		&mut self,
-		f: fn(Request) -> BoxFuture<'static, Result<Request, Error>>,
+		f: fn(Request) -> BoxFuture<'static, Result<Request, ()>>,
 	) {
 		self.edit_request = f;
 	}
 
 	pub fn edit_response_using(
 		&mut self,
-		f: fn(Response) -> BoxFuture<'static, Result<Response, Error>>,
+		f: fn(Response) -> BoxFuture<'static, Result<Response, ()>>,
 	) {
 		self.edit_response = f;
 	}

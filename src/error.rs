@@ -6,6 +6,8 @@ pub enum Error {
 	ParseErr,
 	#[error("proxy client could not authenticate")]
 	ProxyAuthErr,
+	#[error("http transformer error")]
+	TransformationErr,
 	#[error(transparent)]
 	OSSLErr(#[from] openssl::error::Error),
 	#[error(transparent)]
