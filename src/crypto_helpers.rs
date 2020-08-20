@@ -1,8 +1,3 @@
-use std::{
-	fs::File,
-	io::{Cursor, Read, Write},
-};
-
 use openssl::{
 	asn1::Asn1Time,
 	bn::BigNum,
@@ -17,6 +12,12 @@ use openssl::{
 };
 
 use rustls::{Certificate, PrivateKey};
+
+use std::{
+	fs::File,
+	io::{Cursor, Read, Write},
+	path::Path,
+};
 
 use crate::error::Error;
 
@@ -54,13 +55,13 @@ pub fn make_ca_cert(privkey: &PKeyRef<Private>, serial: u32) -> Result<X509, Err
 	Ok(x509)
 }
 
-pub fn save_cert(file: &str, cert: &X509Ref) -> Result<(), Error> {
+pub fn save_cert(file: &Path, cert: &X509Ref) -> Result<(), Error> {
 	let mut file = File::create(file)?;
 	file.write_all(&cert.to_pem()?)?;
 	Ok(())
 }
 
-pub fn load_cert(file: &str) -> Result<X509, Error> {
+pub fn load_cert(file: &Path) -> Result<X509, Error> {
 	let mut file = File::open(file)?;
 	let mut bytes = Vec::new();
 	file.read_to_end(&mut bytes)?;
@@ -68,13 +69,13 @@ pub fn load_cert(file: &str) -> Result<X509, Error> {
 	Ok(cert)
 }
 
-pub fn save_key(file: &str, key: &PKeyRef<Private>) -> Result<(), Error> {
+pub fn save_key(file: &Path, key: &PKeyRef<Private>) -> Result<(), Error> {
 	let mut file = File::create(file)?;
 	file.write_all(&key.private_key_to_pem_pkcs8()?)?;
 	Ok(())
 }
 
-pub fn load_key(file: &str) -> Result<PKey<Private>, Error> {
+pub fn load_key(file: &Path) -> Result<PKey<Private>, Error> {
 	let mut file = File::open(file)?;
 	let mut bytes = Vec::new();
 	file.read_to_end(&mut bytes)?;
@@ -139,12 +140,7 @@ pub fn make_pkcs12(
 	Ok(pkcs12)
 }
 
-pub fn load_ca(key: &str, cert: &str) -> Result<(PKey<Private>, X509), Error> {
-	// let ca_privkey_ossl = generate_keys()?;
-	// let ca_cert_ossl = make_ca_cert(&ca_privkey_ossl, rand::random::<u32>())?;
-	// save_key("ca_key.pem", &ca_privkey_ossl)?;
-	// save_cert("ca_cert.pem", &ca_cert_ossl)?;
-
+pub fn load_ca(key: &Path, cert: &Path) -> Result<(PKey<Private>, X509), Error> {
 	let ca_privkey_ossl = load_key(key)?;
 	let ca_cert_ossl = load_cert(cert)?;
 

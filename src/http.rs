@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use async_std::prelude::*;
 
 use async_std::io::prelude::*;
@@ -17,9 +15,11 @@ use async_h1::{client, server};
 
 use http_types::{Method, Request, Response, StatusCode};
 
+use std::{path::Path, sync::Arc};
+
 use crate::{crypto_helpers::*, error::Error, proxy::Proxy};
 
-fn make_server_config(domain: &str, key: &str, cert: &str) -> Result<ServerConfig, Error> {
+fn make_server_config(domain: &str, key: &Path, cert: &Path) -> Result<ServerConfig, Error> {
 	// Load certificates
 	let (ca_privkey_ossl, ca_cert_ossl) = load_ca(key, cert)?;
 
@@ -43,8 +43,8 @@ fn make_server_config(domain: &str, key: &str, cert: &str) -> Result<ServerConfi
 async fn do_tls_handshake(
 	mut client_stream: TcpStream,
 	request: Request,
-	key: &str,
-	cert: &str,
+	key: &Path,
+	cert: &Path,
 ) -> Result<
 	(
 		async_dup::Arc<async_dup::Mutex<ServerTlsStream<TcpStream>>>,

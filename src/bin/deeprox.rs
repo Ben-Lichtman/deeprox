@@ -10,7 +10,11 @@ use lol_html::{
 	HtmlRewriter, Settings,
 };
 
-use deeprox::proxy::Proxy;
+use structopt::StructOpt;
+
+use std::{net::SocketAddr, path::PathBuf};
+
+use deeprox::{gen_key_and_cert, proxy::Proxy};
 
 async fn modify_request(mut input: Request) -> Result<Request, ()> {
 	// dbg!(&input);
@@ -88,16 +92,43 @@ async fn modify_response(mut input: Response) -> Result<Response, ()> {
 	Ok(input)
 }
 
+#[derive(StructOpt)]
+struct GenerateOpt {
+	#[structopt(short, default_value = "ca_key.pem")]
+	key_path: PathBuf,
+
+	#[structopt(short, default_value = "ca_cert.pem")]
+	cert_path: PathBuf,
+}
+
+#[derive(StructOpt)]
+struct ProxyOpt {
+	#[structopt(default_value = "127.0.0.1:8080")]
+	address: SocketAddr,
+
+	#[structopt(short, default_value = "ca_key.pem")]
+	key_path: PathBuf,
+
+	#[structopt(short, default_value = "ca_cert.pem")]
+	cert_path: PathBuf,
+}
+
+#[derive(StructOpt)]
+enum Opt {
+	Generate(GenerateOpt),
+	Proxy(ProxyOpt),
+}
+
 #[async_std::main]
 async fn main() {
-	let creds = None;
-	let mut proxy = Proxy::new(
-		"127.0.0.1:8000".parse().unwrap(),
-		creds,
-		String::from("ca_key.pem"),
-		String::from("ca_cert.pem"),
-	);
-	proxy.edit_request_using(|r| modify_request(r).boxed());
-	proxy.edit_response_using(|r| modify_response(r).boxed());
-	proxy.start().await.unwrap();
+	match Opt::from_args() {
+		Opt::Generate(o) => gen_key_and_cert(&o.key_path, &o.cert_path).unwrap(),
+		Opt::Proxy(o) => {
+			let creds = None;
+			let mut proxy = Proxy::new(o.address, creds, o.key_path, o.cert_path);
+			proxy.edit_request_using(|r| modify_request(r).boxed());
+			proxy.edit_response_using(|r| modify_response(r).boxed());
+			proxy.start().await.unwrap();
+		}
+	};
 }

@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use async_std::{
 	net::{SocketAddr, TcpListener},
 	task::spawn,
@@ -9,13 +7,15 @@ use http_types::{Request, Response};
 
 use futures::{future::BoxFuture, prelude::*};
 
+use std::{path::PathBuf, sync::Arc};
+
 use crate::{error::Error, http::*};
 
 pub struct Proxy {
 	pub addr: SocketAddr,
 	pub auth: Option<&'static str>,
-	pub key: String,
-	pub cert: String,
+	pub key: PathBuf,
+	pub cert: PathBuf,
 	pub edit_request: fn(Request) -> BoxFuture<'static, Result<Request, ()>>,
 	pub edit_response: fn(Response) -> BoxFuture<'static, Result<Response, ()>>,
 }
@@ -25,7 +25,7 @@ async fn ident_request(input: Request) -> Result<Request, ()> { Ok(input) }
 async fn ident_response(input: Response) -> Result<Response, ()> { Ok(input) }
 
 impl Proxy {
-	pub fn new(addr: SocketAddr, auth: Option<&'static str>, key: String, cert: String) -> Self {
+	pub fn new(addr: SocketAddr, auth: Option<&'static str>, key: PathBuf, cert: PathBuf) -> Self {
 		Proxy {
 			addr,
 			auth,
