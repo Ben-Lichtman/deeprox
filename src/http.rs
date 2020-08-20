@@ -1,8 +1,8 @@
-use async_std::prelude::*;
-
-use async_std::io::prelude::*;
-
-use async_std::{io::copy, net::TcpStream};
+use async_std::{
+	io::{copy, prelude::*},
+	net::TcpStream,
+	prelude::*,
+};
 
 use rustls::{ClientConfig, NoClientAuth, ServerConfig};
 
