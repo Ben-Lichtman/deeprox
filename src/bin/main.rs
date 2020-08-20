@@ -4,7 +4,11 @@ use futures::prelude::*;
 
 use http_types::{Body, Request, Response};
 
-use lol_html::{doc_text, html_content::ContentType, HtmlRewriter, Settings};
+use lol_html::{
+	doc_text,
+	html_content::{ContentType, TextType},
+	HtmlRewriter, Settings,
+};
 
 use deeprox::proxy::Proxy;
 
@@ -47,6 +51,9 @@ async fn modify_response(mut input: Response) -> Result<Response, ()> {
 		Settings {
 			element_content_handlers: vec![],
 			document_content_handlers: vec![doc_text!(|t| {
+				if t.text_type() != TextType::Data {
+					return Ok(());
+				}
 				let s = String::from(t.as_str());
 				let s = s.replace("cloud", "fuck");
 				let s = s.replace("Cloud", "Fuck");
@@ -61,9 +68,20 @@ async fn modify_response(mut input: Response) -> Result<Response, ()> {
 
 	match rewriter.write(&buffer).map_err(|_| ()) {
 		Ok(_) => (),
-		Err(_) => return Ok(input),
+		Err(_) => {
+			let body = Body::from_bytes(output);
+			input.set_body(body);
+			return Ok(input);
+		}
 	};
-	rewriter.end().map_err(|_| ())?;
+	match rewriter.end().map_err(|_| ()) {
+		Ok(_) => (),
+		Err(_) => {
+			let body = Body::from_bytes(output);
+			input.set_body(body);
+			return Ok(input);
+		}
+	};
 
 	let body = Body::from_bytes(output);
 	input.set_body(body);
